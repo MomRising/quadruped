@@ -1,0 +1,28 @@
+[package]
+name = "quadruped"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "base"
+path = "src/main.rs"
+
+[dependencies]
+rclrs = "*"
+
+std_msgs = "*"
+std_srvs = "*"
+geometry_msgs = "*"
+sensor_msgs = "*"
+builtin_interfaces = "*"
+
+cus_interfaces = "*"
+
+serialport = "4.3.0"
+nalgebra = "0.33.2"
+
+[dependencies.rosidl_runtime_rs]
+version = "0.4"
+
+# [package.metadata.ros]
+# install_to_share = ["launch","urdf"]

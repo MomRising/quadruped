@@ -1,0 +1,21 @@
+<package format="3">
+  <name>quadruped</name>
+  <version>0.0.0</version>
+  <description>TODO: Package description</description>
+  <maintainer email="user@todo.todo">user</maintainer>
+  <license>TODO: License declaration</license>
+
+  <depend>rclrs</depend>
+  <depend>rosidl_runtime_rs</depend>
+
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>builtin_interfaces</depend>
+  <depend>cus_interfaces</depend>
+
+  <export>
+    <build_type>ament_cargo</build_type>
+  </export>
+</package>
