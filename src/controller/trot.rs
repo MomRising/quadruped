@@ -3,12 +3,12 @@ use std::f32::consts::PI;
 use nalgebra::{Matrix3x4, Matrix4, Vector3};
 #[path = "./ik.rs"] mod ik;
 
-use crate::{DEF_POS, TIME_STEP};
-const PHASE_TICK: u32 = 20;//针对下位机通信效率，修改相位周期
+use crate::{DEF_POS, FREQUENCY, TIME_STEP};
+const PHASE_TICK: u32 = (FREQUENCY * 0.8) as u32;//一秒内周期数
 const PHASE_TICK_HALF: u32 = PHASE_TICK / 2;
 const PHASE_TICK_THIRD: u32 = PHASE_TICK - STANCE_TICK;
 const PHASE_TIME: f32 = (PHASE_TICK as f32) * TIME_STEP;//0.8s
-const DUTY: f32 = 0.5;//可修改，支撑相占空比
+const DUTY: f32 = 0.7;//可修改，支撑相占空比
 const SWING_TICK: u32 = ((1.0 - DUTY) * PHASE_TICK as f32) as u32;
 const STANCE_TICK: u32 = PHASE_TICK / 2 - SWING_TICK;
 
@@ -102,7 +102,7 @@ impl Trot {
             },
         };
         self.ticks += 1;
-        println!("ticks: {}, next_foot_pos: {:?}", self.ticks, next_foot_pos);
+        // println!("ticks: {}, next_foot_pos: {:?}", self.ticks, next_foot_pos);
         next_foot_pos
     }
     pub fn stance(&self, vel: &Vec<f32>, foot_pos: Vector3<f32>) -> Vector3<f32> {

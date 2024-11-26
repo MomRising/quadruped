@@ -1,8 +1,8 @@
-use std::{f32::consts::{FRAC_PI_2, FRAC_PI_4, FRAC_PI_6, PI}, time};
-use serialport::SerialPort;
+use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+// use serialport::SerialPort;
 
 use crate::TIME_STEP;
-const ANGLE_CENTER: [f32;3] = [0.0, FRAC_PI_4, FRAC_PI_2];//机械校准
+const ANGLE_CENTER: [f32;3] = [0.0, FRAC_PI_4, FRAC_PI_2];//机械校准。数组0，1，2分别代表肩，大腿，小腿
 const ANGLE_MAX: [f32;3] = [//范围均可调整
     FRAC_PI_2 - 0.2,//舵机臂机械碰撞极限角度
     FRAC_PI_2,
@@ -11,8 +11,8 @@ const ANGLE_RANGE: [[f32;2];3] = [
 [ANGLE_CENTER[0] - ANGLE_MAX[0]/2.0, ANGLE_CENTER[0] + ANGLE_MAX[0]/2.0],//肩关节不为0.0的话，需改动不同腿
 [ANGLE_CENTER[1] - ANGLE_MAX[1]/2.0, ANGLE_CENTER[1] + ANGLE_MAX[1]/2.0],
 [ANGLE_CENTER[2] - ANGLE_MAX[2]/2.0, ANGLE_CENTER[2] + ANGLE_MAX[2]/2.0]];
-const ANGLE_BETWEEN_ALPHA_BETA: f32 = 0.1;//两腿间夹角，有夹角即可
-const PWM_ERR: [[i32;3];4] = [[60, -60, -50],[0, 0, 0],[40, 0, 0],[0, 0, 0],];//矫正
+const ANGLE_BETWEEN_ALPHA_BETA: f32 = 0.3;//两腿间夹角
+const PWM_ERR: [[i32;3];4] = [[60, -75, -65],[0, -10, -60],[30, 35, -30],[-20, 0, -100],];//矫正
 #[cfg(test)]
 mod tests {
     use std::f32::consts::{FRAC_2_PI, FRAC_PI_3};
@@ -20,17 +20,17 @@ mod tests {
     use super::*; 
     #[test]
     fn test2() {
-        stm32([[0.0, FRAC_PI_4, FRAC_PI_2];4]);
-        // stm32([[FRAC_PI_4 -0.1, FRAC_PI_4, FRAC_PI_2];4]);
+        // stm32([[0.0, FRAC_PI_2, FRAC_PI_2];4]);
+        // stm32([[0.0, FRAC_PI_4, FRAC_PI_2];4]);
         
     }
 }
-pub fn stm32(angle: [[f32;3];4]) -> serialport::Result<()> {
+pub fn stm32(angle: [[f32;3];4]) -> [u8;43] {
     //初始化串口
-    let mut port = serialport::new("/dev/ttyS1", 9600)
-    .timeout(time::Duration::from_millis(3000))
-    .open()
-    .expect("Failed to open port");
+    // let mut port = serialport::new("/dev/ttyS1", 9600)
+    // .timeout(time::Duration::from_millis(100))
+    // .open()
+    // .expect("Failed to open port");
 
     let mut cmd:[u8;43] = [
         0x55, 0x55,
@@ -41,6 +41,11 @@ pub fn stm32(angle: [[f32;3];4]) -> serialport::Result<()> {
         0x06, 0xE8, 0x03, 0x07, 0xE8, 0x03, 0x08, 0xE8, 0x03,
         0x09, 0xE8, 0x03, 0x0A, 0xE8, 0x03, 0x0B, 0xE8, 0x03
     ];
+    // let mut cmd:[u8;16] = [
+    //     0x55, 0x55,
+    //     0x0E, 0x03,//数据长度，指令代码
+    //     0x03, 0x14, 0x00,//数量，时间低八位，高八位
+    //     0x00, 0xE8, 0x03, 0x01, 0xE8, 0x03, 0x02, 0xE8, 0x03];
     //时间设定
     let done_time = to_hex((TIME_STEP * 1000.0) as u32);
     (cmd[5], cmd[6]) = (done_time[0], done_time[1]);
@@ -52,18 +57,18 @@ pub fn stm32(angle: [[f32;3];4]) -> serialport::Result<()> {
             angle[leg][2] = angle[leg][1] + ANGLE_BETWEEN_ALPHA_BETA;//两个舵机间角度不低于设定值，不然上下腿会碰撞
         }
     }
-    for leg in 0..4 {
+    for leg in 0..4{
         for joint in 0..3 {
             let mut pwm = (manage(angle[leg][joint], joint) + PWM_ERR[leg][joint]) as u32;
-            if let (0,2) | (1,1) | (2,1) | (3,2) = (leg, joint){
-                pwm = 3000 - pwm//轴朝右的舵机pwm输出关于1500对称。先补偿误差，再对称
+            if let (0,2)|(1,0)|(1,1)|(2,1)|(3,0)|(3,2) = (leg, joint){
+                pwm = 3000 - pwm//轴朝右和朝后的舵机pwm输出关于1500对称。
             }
             let angle_hex = to_hex(pwm);
             (cmd[8 + leg * 9 + joint * 3], cmd[9 + leg * 9 + joint * 3]) = (angle_hex[0], angle_hex[1]);
         }
     }
-    port.write(&cmd).expect("Write failed!");
-    Ok(())
+    // port.write(&cmd).expect("write error");
+    cmd
 }
 fn manage(angle: f32, joint: usize)  -> i32 {//角度映射到pwm频率
     let angle_processed = match angle {
