@@ -1,11 +1,11 @@
 use std::f32::consts::PI;
 
 use nalgebra::{distance, point, Matrix3, Matrix3x4, Rotation3, Vector3};
-use crate::{LINKS, _DEF_POS};
+use crate::{LINKS, DEF_SHOULDER_POS};
 
 pub fn ik(height: f32, body_angle: Vector3<f32>, foot_pos: Matrix3x4<f32>) -> [[f32;3];4]{
-    //整体移至重心重合原点，身体不旋转，足端反向旋转
-    let shoulder = _DEF_POS;
+    //整体移至重心重合原点，身体不旋转，足端反向旋转；身体重心平移则四足反向平移
+    let shoulder = DEF_SHOULDER_POS;
     let mut down_foot_pos = foot_pos;
     for h in down_foot_pos.row_mut(2).iter_mut() {
         *h -= height;//高度下降

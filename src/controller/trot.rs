@@ -4,11 +4,11 @@ use nalgebra::{Matrix3x4, Matrix4, Vector3};
 #[path = "./ik.rs"] mod ik;
 
 use crate::{DEF_POS, FREQUENCY, TIME_STEP};
-const PHASE_TICK: u32 = (FREQUENCY * 0.8) as u32;//一秒内周期数
+const PHASE_TICK: u32 = (FREQUENCY * 1.0) as u32;//一秒内周期数
 const PHASE_TICK_HALF: u32 = PHASE_TICK / 2;
 const PHASE_TICK_THIRD: u32 = PHASE_TICK - STANCE_TICK;
 const PHASE_TIME: f32 = (PHASE_TICK as f32) * TIME_STEP;//0.8s
-const DUTY: f32 = 0.7;//可修改，支撑相占空比
+const DUTY: f32 = 0.8;//可修改，支撑相占空比
 const SWING_TICK: u32 = ((1.0 - DUTY) * PHASE_TICK as f32) as u32;
 const STANCE_TICK: u32 = PHASE_TICK / 2 - SWING_TICK;
 
@@ -47,7 +47,7 @@ impl Trot {
             stance_tick: STANCE_TICK,
             ticks: 0u32,
             start_pos: DEF_POS,
-            end_pos_sub_x_or_y: (PHASE_TICK as f32) * DUTY * TIME_STEP * 1.0/3.0,
+            end_pos_sub_x_or_y: (PHASE_TICK as f32) * DUTY * TIME_STEP * 1.0/5.0,//1/5为设定步幅在默认位置前的部分
 
             _phase: Matrix4::new(0, 1, 1, 1,
                                 0, 1, 1, 1, 
@@ -57,10 +57,6 @@ impl Trot {
     }
     pub fn plan(&mut self, vel_cmd: Vec<f32>, foot_pos: Matrix3x4<f32>) -> Matrix3x4<f32>{
         self.ticks = self.ticks % PHASE_TICK; // 0 ~ PHASE_TICK
-        let foot_pos_1 = foot_pos.column(0).into();
-        let foot_pos_2 = foot_pos.column(1).into();
-        let foot_pos_3 = foot_pos.column(2).into();
-        let foot_pos_4 = foot_pos.column(3).into();
         match self.ticks {
             0 | PHASE_TICK_HALF => {
                 self.start_pos = foot_pos;
@@ -72,29 +68,29 @@ impl Trot {
             0..SWING_TICK => {Matrix3x4::<f32>::from_columns(&[
                 self.swing(&self.vel, self.ticks, self.start_pos.column(0).into(), DEF_POS.column(0).into()),
                 self.swing(&self.vel, self.ticks, self.start_pos.column(1).into(), DEF_POS.column(1).into()),
-                self.stance(&self.vel, foot_pos_3),
-                self.stance(&self.vel, foot_pos_4)
+                self.stance(&self.vel, foot_pos.column(2).into()),
+                self.stance(&self.vel, foot_pos.column(3).into())
                 ])
             },
             tick if tick >= SWING_TICK && tick < PHASE_TICK_HALF => {Matrix3x4::<f32>::from_columns(&[//范围判断防止占空比0.5时无此区间
-                self.stance(&self.vel, foot_pos_1),
-                self.stance(&self.vel, foot_pos_2),
-                self.stance(&self.vel, foot_pos_3),
-                self.stance(&self.vel, foot_pos_4),
+                self.stance(&self.vel, foot_pos.column(0).into()),
+                self.stance(&self.vel, foot_pos.column(1).into()),
+                self.stance(&self.vel, foot_pos.column(2).into()),
+                self.stance(&self.vel, foot_pos.column(3).into()),
                 ])
             },
             PHASE_TICK_HALF..PHASE_TICK_THIRD => {Matrix3x4::<f32>::from_columns(&[
-                self.stance(&self.vel, foot_pos_1),
-                self.stance(&self.vel, foot_pos_2),
+                self.stance(&self.vel, foot_pos.column(0).into()),
+                self.stance(&self.vel, foot_pos.column(1).into()),
                 self.swing(&self.vel, self.ticks - PHASE_TICK_HALF, self.start_pos.column(2).into(), DEF_POS.column(2).into()),
                 self.swing(&self.vel, self.ticks - PHASE_TICK_HALF, self.start_pos.column(3).into(), DEF_POS.column(3).into())
                 ])
             },
             tick if tick >= PHASE_TICK_THIRD && tick < PHASE_TICK => {Matrix3x4::<f32>::from_columns(&[
-                self.stance(&self.vel, foot_pos_1),
-                self.stance(&self.vel, foot_pos_2),
-                self.stance(&self.vel, foot_pos_3),
-                self.stance(&self.vel, foot_pos_4),
+                self.stance(&self.vel, foot_pos.column(0).into()),
+                self.stance(&self.vel, foot_pos.column(1).into()),
+                self.stance(&self.vel, foot_pos.column(2).into()),
+                self.stance(&self.vel, foot_pos.column(3).into()),
                 ])
             },
             _ => {
@@ -121,7 +117,7 @@ impl Trot {
         let sigma = 2.0 * PI * (next_ticks as f32) / (SWING_TICK as f32);
         //30设定抬腿高度
         let pos_z = 30.0 * (1.0 - sigma.cos()) / 2.0;
-        //设定摆动相终点位置，1/3为设定步幅在默认位置前的部分
+        //设定摆动相终点位置
         let end_x = vel[0] * self.end_pos_sub_x_or_y + def_foot_pos[0];
         let end_y = vel[1] * self.end_pos_sub_x_or_y + def_foot_pos[1];
         let start_x = start_foot_pos[0];

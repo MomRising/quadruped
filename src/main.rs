@@ -15,26 +15,29 @@ mod controller;
 mod sensor;
 mod drive;
 //机械结构
-const FREQUENCY: f32 = 20.0;//封顶330Hz，实际频率在200Hz左右
+const FREQUENCY: f32 =  20.0;//规划频率，PWM频率可以更高，舵机通信封顶330Hz。9600波特率/43*u8,22hz封顶。
 const TIME_STEP: f32 = 1.0 / FREQUENCY;
 const LENGTH: f32 = 212.0;
 const WIDTH: f32 = 110.0;
 const LINKS: [f32; 3] = [29.5, 130.0, 139.0];
 //默认姿态
-const DEF_VEL:f32 = 130.0;
-const DEF_HEIGHT: f32 = 160.0;
+const DEF_VEL_X:f32 = 50.0;
+const DEF_VEL_Y:f32 = 0.0;
+const DEF_HEIGHT: f32 = 130.0;
+const SIDE_LENGTH: f32 = 60.0;
 const DEF_POS: Matrix3x4<f32> = Matrix3x4::<f32>::new(
     LENGTH / 2.0, - LENGTH / 2.0, LENGTH / 2.0, - LENGTH / 2.0, 
-    WIDTH / 1.4, - WIDTH / 1.4, - WIDTH / 1.4, WIDTH / 1.4,
+    WIDTH / 2.0 + SIDE_LENGTH, - (WIDTH / 2.0 + SIDE_LENGTH), - (WIDTH / 2.0 + SIDE_LENGTH), WIDTH / 2.0 + SIDE_LENGTH,
     0.0, 0.0, 0.0, 0.0,
     );//坐标基点为主体重心的垂点，x轴为前进方向，y轴为前进方向左侧，z轴向上
-const _DEF_POS: [Point3<f32>; 4] = [
+const DEF_SHOULDER_POS: [Point3<f32>; 4] = [//处理时加上当前高度
     Point3::new(LENGTH / 2.0, WIDTH / 2.0, 0.0),
     Point3::new(-LENGTH / 2.0, -WIDTH / 2.0, 0.0),
     Point3::new(LENGTH / 2.0, -WIDTH / 2.0, 0.0),
     Point3::new(-LENGTH / 2.0, WIDTH / 2.0, 0.0),
 ];
 static mut _COUNT: usize = 0;//数据计数
+static mut _COUNT_TIME: f64 = 0.0;//时间计数
 //////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
@@ -68,18 +71,20 @@ fn main() -> Result<(), RclrsError> {
                     robot_.state.lock().unwrap().foot_pos = next_foot_pos;
                     let next_angle = controller::ik::ik(DEF_HEIGHT, body_angle, next_foot_pos);
                     let cmd = drive::stm32(next_angle);
+                    // println!("cmd: {:?}", cmd);
 
                     port.write(&cmd).expect("write error");
-                    println!("stm32->elapsed: {:?}",sip_time.elapsed());
-                    // if sip_time.elapsed() <= Duration::from_secs_f32(TIME_STEP) {
-                    //     println!("_if->elapsed: {:?}",sip_time.elapsed());
-                    //     thread::sleep(Duration::from_secs_f32(TIME_STEP) - sip_time.elapsed())
-                    // };
-                    // println!("if->elapsed: {:?}",sip_time.elapsed());
+                    // println!("stm32->elapsed: {:?}",sip_time.elapsed());
+                    if sip_time.elapsed() <= Duration::from_secs_f32(TIME_STEP) {
+                        thread::sleep(Duration::from_secs_f32(TIME_STEP) - sip_time.elapsed())
+                    };
+                    println!("if->elapsed: {:?}",sip_time.elapsed());
                     unsafe {
                         _COUNT += 1;
+                        _COUNT_TIME += sip_time.elapsed().as_secs_f64();
                         if _COUNT % ((FREQUENCY) as usize) == 0 {
                             println!("count:{}", _COUNT);
+                            println!("time:{}", _COUNT_TIME);
                         }
                    }//数据计算计数
                 }
@@ -178,7 +183,7 @@ impl RobotModule {
         let mode_cmd = Arc::new(Mutex::new(Some(StringMsg{data: String::from("trot")})));
         let vel_cmd = Arc::new(Mutex::new(Some(
             Twist{
-            linear: geometry_msgs::msg::Vector3{x: DEF_VEL as f64, y: (DEF_VEL/2.0) as f64, z: 0.0},//初始默认速度修改
+            linear: geometry_msgs::msg::Vector3{x: DEF_VEL_X as f64, y: DEF_VEL_Y as f64, z: 0.0},//初始默认速度修改
             angular: geometry_msgs::msg::Vector3{x: 0.0, y: 0.0, z: 0.0},
         })));
         let height_cmd = Arc::new(Mutex::new(Some(Float32{data: DEF_HEIGHT})));

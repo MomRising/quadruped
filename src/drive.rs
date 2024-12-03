@@ -12,7 +12,7 @@ const ANGLE_RANGE: [[f32;2];3] = [
 [ANGLE_CENTER[1] - ANGLE_MAX[1]/2.0, ANGLE_CENTER[1] + ANGLE_MAX[1]/2.0],
 [ANGLE_CENTER[2] - ANGLE_MAX[2]/2.0, ANGLE_CENTER[2] + ANGLE_MAX[2]/2.0]];
 const ANGLE_BETWEEN_ALPHA_BETA: f32 = 0.3;//两腿间夹角
-const PWM_ERR: [[i32;3];4] = [[60, -75, -65],[0, -10, -60],[30, 35, -30],[-20, 0, -100],];//矫正
+const PWM_ERR: [[i32;3];4] = [[55, -65, -40],[-10, -10, 0],[50, -35, 35],[10, 10, 0],];//矫正
 #[cfg(test)]
 mod tests {
     use std::f32::consts::{FRAC_2_PI, FRAC_PI_3};
@@ -22,16 +22,9 @@ mod tests {
     fn test2() {
         // stm32([[0.0, FRAC_PI_2, FRAC_PI_2];4]);
         // stm32([[0.0, FRAC_PI_4, FRAC_PI_2];4]);
-        
     }
 }
-pub fn stm32(angle: [[f32;3];4]) -> [u8;43] {
-    //初始化串口
-    // let mut port = serialport::new("/dev/ttyS1", 9600)
-    // .timeout(time::Duration::from_millis(100))
-    // .open()
-    // .expect("Failed to open port");
-
+pub fn stm32(mut angle: [[f32;3];4]) -> [u8;43] {
     let mut cmd:[u8;43] = [
         0x55, 0x55,
         0x29, 0x03,//数据长度，指令代码
@@ -46,37 +39,35 @@ pub fn stm32(angle: [[f32;3];4]) -> [u8;43] {
     //     0x0E, 0x03,//数据长度，指令代码
     //     0x03, 0x14, 0x00,//数量，时间低八位，高八位
     //     0x00, 0xE8, 0x03, 0x01, 0xE8, 0x03, 0x02, 0xE8, 0x03];
-    //时间设定
+
+    // 时间设定
     let done_time = to_hex((TIME_STEP * 1000.0) as u32);
     (cmd[5], cmd[6]) = (done_time[0], done_time[1]);
     //角度设定
-    let mut angle = angle;
     for leg in 0..4{
         angle[leg][2] = angle[leg][1] + (PI - angle[leg][2]);
         if (angle[leg][2] - angle[leg][1]) < ANGLE_BETWEEN_ALPHA_BETA {
-            angle[leg][2] = angle[leg][1] + ANGLE_BETWEEN_ALPHA_BETA;//两个舵机间角度不低于设定值，不然上下腿会碰撞
+            angle[leg][2] = angle[leg][1] + ANGLE_BETWEEN_ALPHA_BETA;//大腿和小腿舵机间角度不低于设定值，不然上下腿会碰撞
         }
-    }
-    for leg in 0..4{
         for joint in 0..3 {
-            let mut pwm = (manage(angle[leg][joint], joint) + PWM_ERR[leg][joint]) as u32;
-            if let (0,2)|(1,0)|(1,1)|(2,1)|(3,0)|(3,2) = (leg, joint){
-                pwm = 3000 - pwm//轴朝右和朝后的舵机pwm输出关于1500对称。
-            }
-            let angle_hex = to_hex(pwm);
+            let pwm = manage(angle[leg][joint], leg, joint);
+            let angle_hex = to_hex(pwm as u32);
             (cmd[8 + leg * 9 + joint * 3], cmd[9 + leg * 9 + joint * 3]) = (angle_hex[0], angle_hex[1]);
         }
     }
-    // port.write(&cmd).expect("write error");
     cmd
 }
-fn manage(angle: f32, joint: usize)  -> i32 {//角度映射到pwm频率
+fn manage(angle: f32, leg: usize, joint: usize)  -> i32 {//角度映射到pwm频率
     let angle_processed = match angle {
         x if x < ANGLE_RANGE[joint][0] => ANGLE_RANGE[joint][0],
         x if x > ANGLE_RANGE[joint][1] => ANGLE_RANGE[joint][1],
         _ => angle,
     };
-    let pwm = ((angle_processed - ANGLE_CENTER[joint]) / PI * 2000.0 + 1500.0) as i32;
+    let mut pwm = ((angle_processed - ANGLE_CENTER[joint]) / PI * 2000.0 + 1500.0) as i32;
+    if let (0,2)|(1,0)|(1,1)|(2,1)|(3,0)|(3,2) = (leg, joint){
+        pwm = 3000 - pwm//轴朝右和朝后的舵机pwm输出关于1500对称。
+    }
+    pwm += PWM_ERR[leg][joint];//先对称，后修正
     pwm
 }
 fn to_hex(num: u32) -> [u8;2] {
